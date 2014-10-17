@@ -2,7 +2,7 @@
 
 var Lab = require('lab');
 var Joi = require('../lib');
-var Validate = require('./helper');
+var Helper = require('./helper');
 
 
 // Declare internals
@@ -12,14 +12,24 @@ var internals = {};
 
 // Test shortcuts
 
+var lab = exports.lab = Lab.script();
+var before = lab.before;
+var after = lab.after;
+var describe = lab.describe;
+var it = lab.it;
 var expect = Lab.expect;
-var before = Lab.before;
-var after = Lab.after;
-var describe = Lab.experiment;
-var it = Lab.test;
 
 
-describe('Joi.string', function () {
+describe('string', function () {
+
+    it('fails on boolean', function (done) {
+
+        var schema = Joi.string();
+        Helper.validate(schema, [
+            [true, false],
+            [false, false]
+        ], done);
+    });
 
     describe('#valid', function () {
 
@@ -27,8 +37,8 @@ describe('Joi.string', function () {
 
             expect(function () {
 
-                Joi.string().valid(1);
-            }).to.throw;
+                Joi.string().valid({});
+            }).to.throw();
             done();
         });
 
@@ -37,30 +47,41 @@ describe('Joi.string', function () {
             expect(function () {
 
                 Joi.string().valid('joi');
-            }).to.not.throw;
+            }).to.not.throw();
             done();
         });
 
         it('validates case sensitive values', function (done) {
 
-            Validate(Joi.string().valid('a', 'b'), [
+            Helper.validate(Joi.string().valid('a', 'b'), [
                 ['a', true],
                 ['b', true],
                 ['A', false],
                 ['B', false]
-            ]);
-            done();
+            ], done);
         });
 
         it('validates case insensitive values', function (done) {
 
-            Validate(Joi.string().valid('a', 'b').insensitive(), [
+            Helper.validate(Joi.string().valid('a', 'b').insensitive(), [
                 ['a', true],
                 ['b', true],
                 ['A', true],
-                ['B', true]
-            ]);
-            done();
+                ['B', true],
+                [4, false]
+            ], done);
+        });
+
+        it('validates case insensitive values with non-strings', function (done) {
+
+            Helper.validate(Joi.string().valid('a', 'b', 5).insensitive(), [
+                ['a', true],
+                ['b', true],
+                ['A', true],
+                ['B', true],
+                [4, false],
+                [5, true]
+            ], done);
         });
     });
 
@@ -70,8 +91,8 @@ describe('Joi.string', function () {
 
             expect(function () {
 
-                Joi.string().invalid(1);
-            }).to.throw;
+                Joi.string().invalid({});
+            }).to.throw();
             done();
         });
 
@@ -80,401 +101,650 @@ describe('Joi.string', function () {
             expect(function () {
 
                 Joi.string().invalid('joi');
-            }).to.not.throw;
+            }).to.not.throw();
             done();
         });
 
         it('invalidates case sensitive values', function (done) {
 
-            Validate(Joi.string().invalid('a', 'b'), [
+            Helper.validate(Joi.string().invalid('a', 'b'), [
                 ['a', false],
                 ['b', false],
                 ['A', true],
                 ['B', true]
-            ]);
-            done();
+            ], done);
         });
 
         it('invalidates case insensitive values', function (done) {
 
-            Validate(Joi.string().invalid('a', 'b').insensitive(), [
+            Helper.validate(Joi.string().invalid('a', 'b').insensitive(), [
                 ['a', false],
                 ['b', false],
                 ['A', false],
                 ['B', false]
-            ]);
+            ], done);
+        });
+    });
+
+    describe('#min', function () {
+
+        it('throws when limit is not a number', function (done) {
+
+            expect(function () {
+
+                Joi.string().min('a');
+            }).to.throw('limit must be a positive integer');
             done();
+        });
+
+        it('throws when limit is not an integer', function (done) {
+
+            expect(function () {
+
+                Joi.string().min(1.2);
+            }).to.throw('limit must be a positive integer');
+            done();
+        });
+
+        it('enforces a limit using byte count', function (done) {
+
+            var schema = Joi.string().min(2, 'utf8');
+            Helper.validate(schema, [
+                ['\u00bd', true],
+                ['a', false]
+            ], done);
+        });
+    });
+
+    describe('#max', function () {
+
+        it('throws when limit is not a number', function (done) {
+
+            expect(function () {
+
+                Joi.string().max('a');
+            }).to.throw('limit must be a positive integer');
+            done();
+        });
+
+        it('throws when limit is not an integer', function (done) {
+
+            expect(function () {
+
+                Joi.string().max(1.2);
+            }).to.throw('limit must be a positive integer');
+            done();
+        });
+
+        it('enforces a limit using byte count', function (done) {
+
+            var schema = Joi.string().max(1, 'utf8');
+            Helper.validate(schema, [
+                ['\u00bd', false],
+                ['a', true]
+            ], done);
+        });
+    });
+
+    describe('#length', function () {
+
+        it('throws when limit is not a number', function (done) {
+
+            expect(function () {
+
+                Joi.string().length('a');
+            }).to.throw('limit must be a positive integer');
+            done();
+        });
+
+        it('throws when limit is not an integer', function (done) {
+
+            expect(function () {
+
+                Joi.string().length(1.2);
+            }).to.throw('limit must be a positive integer');
+            done();
+        });
+
+        it('enforces a limit using byte count', function (done) {
+
+            var schema = Joi.string().length(2, 'utf8');
+            Helper.validate(schema, [
+                ['\u00bd', true],
+                ['a', false]
+            ], done);
+        });
+    });
+
+    describe('#hostname', function () {
+
+        it('validates hostnames', function (done) {
+
+            var schema = Joi.string().hostname();
+            Helper.validate(schema, [
+                ['www.example.com', true],
+                ['domain.local', true],
+                ['3domain.local', true],
+                ['hostname', true],
+                ['host:name', false],
+                ['-', false],
+                ['2387628', true],
+                ['01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789', false],
+                ['::1', true],
+                ['0:0:0:0:0:0:0:1', true],
+                ['0:?:0:0:0:0:0:1', false]
+            ], done);
+        });
+    });
+
+    describe('#lowercase', function () {
+
+        it('only allows strings that are entirely lowercase', function (done) {
+
+            var schema = Joi.string().lowercase();
+            Helper.validateOptions(schema, [
+                ['this is all lowercase', true],
+                ['5', true],
+                ['lower\tcase', true],
+                ['Uppercase', false],
+                ['MixEd cAsE', false],
+                [1, false]
+            ], { convert: false }, done);
+        });
+
+        it('coerce string to lowercase before validation', function (done) {
+
+            var schema = Joi.string().lowercase();
+            schema.validate('UPPER TO LOWER', function (err, value) {
+
+                expect(err).to.not.exist;
+                expect(value).to.equal('upper to lower');
+                done();
+            });
+        });
+
+        it('should work in combination with a trim', function (done) {
+
+            var schema = Joi.string().lowercase().trim();
+            Helper.validate(schema, [
+                [' abc', true],
+                [' ABC', true],
+                ['ABC', true],
+                [1, false]
+            ], done);
+        });
+    });
+
+    describe('#uppercase', function () {
+
+        it('only allow strings that are entirely uppercase', function (done) {
+
+            var schema = Joi.string().uppercase();
+            Helper.validateOptions(schema, [
+                ['THIS IS ALL UPPERCASE', true],
+                ['5', true],
+                ['UPPER\nCASE', true],
+                ['lOWERCASE', false],
+                ['MixEd cAsE', false],
+                [1, false]
+            ], { convert: false }, done);
+        });
+
+        it('coerce string to uppercase before validation', function (done) {
+
+            var schema = Joi.string().uppercase();
+            schema.validate('lower to upper', function (err, value) {
+
+                expect(err).to.not.exist;
+                expect(value).to.equal('LOWER TO UPPER');
+                done();
+            });
+        });
+
+        it('works in combination with a forced trim', function (done) {
+
+            var schema = Joi.string().uppercase().trim();
+            Helper.validate(schema, [
+                [' abc', true],
+                [' ABC', true],
+                ['ABC', true],
+                [1, false]
+            ], done);
+        });
+    });
+
+    describe('#trim', function () {
+
+        it('only allow strings that have no leading or trailing whitespace', function (done) {
+
+            var schema = Joi.string().trim();
+            Helper.validateOptions(schema, [
+                [' something', false],
+                ['something ', false],
+                ['something\n', false],
+                ['some thing', true],
+                ['something', true]
+            ], { convert: false }, done);
+        });
+
+        it('removes leading and trailing whitespace before validation', function (done) {
+
+            var schema = Joi.string().trim();
+            schema.validate(' trim this ', function (err, value) {
+
+                expect(err).to.not.exist;
+                expect(value).to.equal('trim this');
+                done();
+            });
+        });
+
+        it('removes leading and trailing whitespace before validation', function (done) {
+
+            var schema = Joi.string().trim().allow('');
+            schema.validate('     ', function (err, value) {
+
+                expect(err).to.not.exist;
+                expect(value).to.equal('');
+                done();
+            });
+        });
+
+        it('should work in combination with min', function (done) {
+
+            var schema = Joi.string().min(4).trim();
+            Helper.validate(schema, [
+                [' a ', false],
+                ['abc ', false],
+                ['abcd ', true]
+            ], done);
+        });
+
+        it('should work in combination with max', function (done) {
+
+            var schema = Joi.string().max(4).trim();
+            Helper.validate(schema, [
+                [' abcde ', false],
+                ['abc ', true],
+                ['abcd ', true]
+            ], done);
+        });
+
+        it('should work in combination with length', function (done) {
+
+            var schema = Joi.string().length(4).trim();
+            Helper.validate(schema, [
+                [' ab ', false],
+                ['abc ', false],
+                ['abcd ', true]
+            ], done);
+        });
+
+        it('should work in combination with a case change', function (done) {
+
+            var schema = Joi.string().trim().lowercase();
+            Helper.validate(schema, [
+                [' abc', true],
+                [' ABC', true],
+                ['ABC', true]
+            ], done);
         });
     });
 
     describe('#validate', function () {
 
-        it('should work', function (done) {
-
-            expect(function () {
-
-                var text = Joi.string();
-                var result = text.validate('joi');
-            }).to.not.throw;
-            done();
-        });
-
         it('should, by default, allow undefined, deny empty string', function (done) {
 
-            Validate(Joi.string(), [
+            Helper.validate(Joi.string(), [
                 [undefined, true],
                 ['', false]
-            ]);
-            done();
+            ], done);
         });
 
         it('should, when .required(), deny undefined, deny empty string', function (done) {
 
-            Validate(Joi.string().required(), [
+            Helper.validate(Joi.string().required(), [
                 [undefined, false],
                 ['', false]
-            ]);
-            done();
+            ], done);
         });
 
         it('should, when .required(), print a friend error message for an empty string', function (done) {
 
             var schema = Joi.string().required();
-            var result = Joi.validate('', schema);
+            Joi.compile(schema).validate('', function (err, value) {
 
-            expect(result.message).to.contain('be empty');
-            done();
+                expect(err.message).to.contain('be empty');
+                done();
+            });
         });
 
         it('should, when .required(), validate non-empty strings', function (done) {
 
             var schema = Joi.string().required();
-            Validate(schema, [
+            Helper.validate(schema, [
                 ['test', true],
                 ['0', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should validate invalid values', function (done) {
+        it('validates invalid values', function (done) {
 
             var schema = Joi.string().invalid('a', 'b', 'c');
-            Validate(schema, [
+            Helper.validate(schema, [
                 ['x', true],
                 ['a', false],
                 ['c', false]
-            ]);
-            done();
+            ], done);
         });
 
         it('should invalidate invalid values', function (done) {
 
             var schema = Joi.string().valid('a', 'b', 'c');
-            Validate(schema, [
+            Helper.validate(schema, [
                 ['x', false],
                 ['a', true],
                 ['c', true]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle array arguments correctly', function (done) {
+        it('validates array arguments correctly', function (done) {
 
             var schema = Joi.string().valid(['a', 'b', 'c']);
-            Validate(schema, [
+            Helper.validate(schema, [
                 ['x', false],
                 ['a', true],
                 ['c', true]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should validate minimum length when min is used', function (done) {
+        it('validates minimum length when min is used', function (done) {
 
             var schema = Joi.string().min(3);
-            Validate(schema, [
+            Helper.validate(schema, [
                 ['test', true],
                 ['0', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should validate minimum length when min is 0', function (done) {
+        it('validates minimum length when min is 0', function (done) {
 
             var schema = Joi.string().min(0).required();
-            Validate(schema, [
+            Helper.validate(schema, [
                 ['0', true],
                 [null, false],
                 [undefined, false]
-            ]);
-            done();
+            ], done);
         });
 
         it('should return false with minimum length and a null value passed in', function (done) {
 
             var schema = Joi.string().min(3);
-            Validate(schema, [
+            Helper.validate(schema, [
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('nullOk overrides min length requirement', function (done) {
+        it('null allowed overrides min length requirement', function (done) {
 
-            var schema = Joi.string().min(3).nullOk();
-            Validate(schema, [
+            var schema = Joi.string().min(3).allow(null);
+            Helper.validate(schema, [
                 [null, true]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should validate maximum length when max is used', function (done) {
+        it('validates maximum length when max is used', function (done) {
 
             var schema = Joi.string().max(3);
-            Validate(schema, [
+            Helper.validate(schema, [
                 ['test', false],
                 ['0', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
         it('should return true with max and not required when value is undefined', function (done) {
 
             var schema = Joi.string().max(3);
-            Validate(schema, [
+            Helper.validate(schema, [
                 [undefined, true]
-            ]);
-            done();
+            ], done);
         });
 
         it('validates length requirements', function (done) {
 
             var schema = Joi.string().length(3);
-            Validate(schema, [
+            Helper.validate(schema, [
                 ['test', false],
                 ['0', false],
                 [null, false],
                 ['abc', true]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should validate regex', function (done) {
+        it('validates regex', function (done) {
 
             var schema = Joi.string().regex(/^[0-9][-][a-z]+$/);
-            Validate(schema, [
+            Helper.validate(schema, [
                 ['van', false],
                 ['0-www', true]
-            ]);
-            done();
+            ], done);
+        });
+
+        it('validates regex (ignoring global flag)', function (done) {
+
+            var schema = Joi.string().regex(/a/g);
+            Helper.validate(schema, [
+                ['ab', true],
+                ['ac', true]
+            ], done);
         });
 
         it('validates token', function (done) {
 
             var schema = Joi.string().token();
-            Validate(schema, [
+            Helper.validate(schema, [
                 ['w0rld_of_w4lm4rtl4bs', true],
                 ['w0rld of_w4lm4rtl4bs', false],
                 ['abcd#f?h1j orly?', false]
-            ]);
-            done();
+            ], done);
         });
 
         it('validates alphanum', function (done) {
 
             var schema = Joi.string().alphanum();
-            Validate(schema, [
+            Helper.validate(schema, [
                 ['w0rld of w4lm4rtl4bs', false],
                 ['w0rldofw4lm4rtl4bs', true],
                 ['abcd#f?h1j orly?', false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should validate email', function (done) {
+        it('validates email', function (done) {
 
             var schema = Joi.string().email();
-            Validate(schema, [
-                ['van@walmartlabs.com', true],
-                ['@iaminvalid.com', false]
-            ]);
-            done();
+            Helper.validate(schema, [
+                ['joe@example.com', true],
+                ['"joe"@example.com', true],
+                ['@iaminvalid.com', false],
+                ['joe@[IPv6:2a00:1450:4001:c02::1b]', true],
+                ['12345678901234567890123456789012345678901234567890123456789012345@walmartlabs.com', false],
+                ['123456789012345678901234567890123456789012345678901234567890@12345678901234567890123456789012345678901234567890123456789.12345678901234567890123456789012345678901234567890123456789.12345678901234567890123456789012345678901234567890123456789.12345.toolong.com', false]
+            ], done);
         });
 
-        it('should validate email with a friendly error message', function (done) {
+        it('validates email with a friendly error message', function (done) {
 
             var schema = { item: Joi.string().email() };
-            var err = Joi.validate({ item: 'something' }, schema);
+            Joi.compile(schema).validate({ item: 'something' }, function (err, value) {
 
-            expect(err.message).to.contain('must be a valid email');
-            done();
+                expect(err.message).to.contain('must be a valid email');
+                done();
+            });
         });
 
         it('should return false for denied value', function (done) {
 
-            var text = Joi.string().deny('joi');
-            var result = text.validate('joi');
-            expect(result).to.exist;
-            done();
+            var text = Joi.string().invalid('joi');
+            text.validate('joi', function (err, value) {
+
+                expect(err).to.exist;
+                done();
+            });
         });
 
         it('should return true for allowed value', function (done) {
 
             var text = Joi.string().allow('hapi');
-            var result = text.validate('result');
-            expect(result).to.not.exist;
-            done();
+            text.validate('result', function (err, value) {
+
+                expect(err).to.not.exist;
+                done();
+            });
         });
 
-        it('should validate with one validator (min)', function (done) {
+        it('validates with one validator (min)', function (done) {
 
             var text = Joi.string().min(3);
-            var result = text.validate('joi');
-            expect(result).to.not.exist;
-            done();
+            text.validate('joi', function (err, value) {
+
+                expect(err).to.not.exist;
+                done();
+            });
         });
 
-        it('should validate with two validators (min, required)', function (done) {
+        it('validates with two validators (min, required)', function (done) {
 
             var text = Joi.string().min(3).required();
-            var result = text.validate('joi');
-            expect(result).to.not.exist;
+            text.validate('joi', function (err, value) {
 
-            var result2 = text.validate();
-            expect(result2).to.exist;
+                expect(err).to.not.exist;
 
-            done();
+                text.validate('', function (err, value) {
+
+                    expect(err).to.exist;
+                    done();
+                });
+            });
         });
 
-        it('should validate null with nullOk()', function (done) {
+        it('validates null with allow(null)', function (done) {
 
-            Validate(Joi.string().nullOk(), [
+            Helper.validate(Joi.string().allow(null), [
                 [null, true]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should validate "" (empty string) with emptyOk()', function (done) {
+        it('validates "" (empty string) with allow(\'\')', function (done) {
 
-            Validate(Joi.string().emptyOk(), [
+            Helper.validate(Joi.string().allow(''), [
                 ['', true],
                 ['', true]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of required and min', function (done) {
+        it('validates combination of required and min', function (done) {
 
             var rule = Joi.string().required().min(3);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', true],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of required and max', function (done) {
+        it('validates combination of required and max', function (done) {
 
             var rule = Joi.string().required().max(3);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x', true],
                 ['123', true],
                 ['1234', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of emptyOk and min', function (done) {
+        it('validates combination of allow(\'\') and min', function (done) {
 
-            var rule = Joi.string().emptyOk().min(3);
-            Validate(rule, [
+            var rule = Joi.string().allow('').min(3);
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', true],
                 ['1234', true],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of emptyOk and max', function (done) {
+        it('validates combination of allow(\'\') and max', function (done) {
 
-            var rule = Joi.string().emptyOk().max(3);
-            Validate(rule, [
+            var rule = Joi.string().allow('').max(3);
+            Helper.validate(rule, [
                 ['x', true],
                 ['123', true],
                 ['1234', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of nullOk and max', function (done) {
-            var rule = Joi.string().nullOk().max(3);
-            Validate(rule, [
+        it('validates combination of null allowed and max', function (done) {
+            var rule = Joi.string().allow(null).max(3);
+            Helper.validate(rule, [
                 ['x', true],
                 ['123', true],
                 ['1234', false],
                 ['', false],
                 [null, true]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of min and max', function (done) {
+        it('validates combination of min and max', function (done) {
 
             var rule = Joi.string().min(2).max(3);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', true],
                 ['1234', false],
                 ['12', true],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of min, max, and emptyOk', function (done) {
+        it('validates combination of min, max, and allow(\'\')', function (done) {
 
-            var rule = Joi.string().min(2).max(3).emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().min(2).max(3).allow('');
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', true],
                 ['1234', false],
                 ['12', true],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of min, max, and required', function (done) {
+        it('validates combination of min, max, and required', function (done) {
 
             var rule = Joi.string().min(2).max(3).required();
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', true],
                 ['1234', false],
                 ['12', true],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of min, max, and regex', function (done) {
+        it('validates combination of min, max, and regex', function (done) {
 
             var rule = Joi.string().min(2).max(3).regex(/^a/);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', false],
                 ['1234', false],
@@ -484,14 +754,13 @@ describe('Joi.string', function () {
                 ['abcd', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of min, max, regex, and emptyOk', function (done) {
+        it('validates combination of min, max, regex, and allow(\'\')', function (done) {
 
-            var rule = Joi.string().min(2).max(3).regex(/^a/).emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().min(2).max(3).regex(/^a/).allow('');
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', false],
                 ['1234', false],
@@ -501,14 +770,13 @@ describe('Joi.string', function () {
                 ['abcd', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of min, max, regex, and required', function (done) {
+        it('validates combination of min, max, regex, and required', function (done) {
 
             var rule = Joi.string().min(2).max(3).regex(/^a/).required();
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', false],
                 ['1234', false],
@@ -518,14 +786,13 @@ describe('Joi.string', function () {
                 ['abcd', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of min, max, and alphanum', function (done) {
+        it('validates combination of min, max, and alphanum', function (done) {
 
             var rule = Joi.string().min(2).max(3).alphanum();
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', true],
                 ['1234', false],
@@ -536,14 +803,13 @@ describe('Joi.string', function () {
                 ['*ab', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of min, max, alphanum, and emptyOk', function (done) {
+        it('validates combination of min, max, alphanum, and allow(\'\')', function (done) {
 
-            var rule = Joi.string().min(2).max(3).alphanum().emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().min(2).max(3).alphanum().allow('');
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', true],
                 ['1234', false],
@@ -554,14 +820,13 @@ describe('Joi.string', function () {
                 ['*ab', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of min, max, alphanum, and required', function (done) {
+        it('validates combination of min, max, alphanum, and required', function (done) {
 
             var rule = Joi.string().min(2).max(3).alphanum().required();
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', true],
                 ['1234', false],
@@ -572,14 +837,13 @@ describe('Joi.string', function () {
                 ['*ab', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of min, max, alphanum, and regex', function (done) {
+        it('validates combination of min, max, alphanum, and regex', function (done) {
 
             var rule = Joi.string().min(2).max(3).alphanum().regex(/^a/);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', false],
                 ['1234', false],
@@ -591,14 +855,13 @@ describe('Joi.string', function () {
                 ['*ab', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of min, max, alphanum, required, and regex', function (done) {
+        it('validates combination of min, max, alphanum, required, and regex', function (done) {
 
             var rule = Joi.string().min(2).max(3).alphanum().required().regex(/^a/);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', false],
                 ['1234', false],
@@ -610,14 +873,13 @@ describe('Joi.string', function () {
                 ['*ab', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of min, max, alphanum, emptyOk, and regex', function (done) {
+        it('validates combination of min, max, alphanum, allow(\'\'), and regex', function (done) {
 
-            var rule = Joi.string().min(2).max(3).alphanum().emptyOk().regex(/^a/);
-            Validate(rule, [
+            var rule = Joi.string().min(2).max(3).alphanum().allow('').regex(/^a/);
+            Helper.validate(rule, [
                 ['x', false],
                 ['123', false],
                 ['1234', false],
@@ -629,193 +891,179 @@ describe('Joi.string', function () {
                 ['*ab', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of email and min', function (done) {
+        it('validates combination of email and min', function (done) {
 
             var rule = Joi.string().email().min(8);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x@x.com', false],
                 ['123@x.com', true],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of email, min, and max', function (done) {
+        it('validates combination of email, min, and max', function (done) {
 
             var rule = Joi.string().email().min(8).max(10);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x@x.com', false],
                 ['123@x.com', true],
                 ['1234@x.com', true],
                 ['12345@x.com', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of email, min, max, and deny', function (done) {
+        it('validates combination of email, min, max, and invalid', function (done) {
 
-            var rule = Joi.string().email().min(8).max(10).deny('123@x.com');
-            Validate(rule, [
+            var rule = Joi.string().email().min(8).max(10).invalid('123@x.com');
+            Helper.validate(rule, [
                 ['x@x.com', false],
                 ['123@x.com', false],
                 ['1234@x.com', true],
                 ['12345@x.com', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of email, min, max, and allow', function (done) {
+        it('validates combination of email, min, max, and allow', function (done) {
 
             var rule = Joi.string().email().min(8).max(10).allow('x@x.com');
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x@x.com', true],
                 ['123@x.com', true],
                 ['1234@x.com', true],
                 ['12345@x.com', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of email, min, max, allow, and deny', function (done) {
+        it('validates combination of email, min, max, allow, and invalid', function (done) {
 
-            var rule = Joi.string().email().min(8).max(10).allow('x@x.com').deny('123@x.com');
-            Validate(rule, [
+            var rule = Joi.string().email().min(8).max(10).allow('x@x.com').invalid('123@x.com');
+            Helper.validate(rule, [
                 ['x@x.com', true],
                 ['123@x.com', false],
                 ['1234@x.com', true],
                 ['12345@x.com', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of email, min, max, allow, deny, and emptyOk', function (done) {
+        it('validates combination of email, min, max, allow, invalid, and allow(\'\')', function (done) {
 
-            var rule = Joi.string().email().min(8).max(10).allow('x@x.com').deny('123@x.com').emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().email().min(8).max(10).allow('x@x.com').invalid('123@x.com').allow('');
+            Helper.validate(rule, [
                 ['x@x.com', true],
                 ['123@x.com', false],
                 ['1234@x.com', true],
                 ['12345@x.com', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of email, min, max, allow, and emptyOk', function (done) {
+        it('validates combination of email, min, max, allow, and allow(\'\')', function (done) {
 
-            var rule = Joi.string().email().min(8).max(10).allow('x@x.com').emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().email().min(8).max(10).allow('x@x.com').allow('');
+            Helper.validate(rule, [
                 ['x@x.com', true],
                 ['123@x.com', true],
                 ['1234@x.com', true],
                 ['12345@x.com', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of email, min, max, allow, deny, and regex', function (done) {
+        it('validates combination of email, min, max, allow, invalid, and regex', function (done) {
 
-            var rule = Joi.string().email().min(8).max(10).allow('x@x.com').deny('123@x.com').regex(/^1/);
-            Validate(rule, [
+            var rule = Joi.string().email().min(8).max(10).allow('x@x.com').invalid('123@x.com').regex(/^1/);
+            Helper.validate(rule, [
                 ['x@x.com', true],
                 ['123@x.com', false],
                 ['1234@x.com', true],
                 ['12345@x.com', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of email, min, max, allow, deny, regex, and emptyOk', function (done) {
+        it('validates combination of email, min, max, allow, invalid, regex, and allow(\'\')', function (done) {
 
-            var rule = Joi.string().email().min(8).max(10).allow('x@x.com').deny('123@x.com').regex(/^1/).emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().email().min(8).max(10).allow('x@x.com').invalid('123@x.com').regex(/^1/).allow('');
+            Helper.validate(rule, [
                 ['x@x.com', true],
                 ['123@x.com', false],
                 ['1234@x.com', true],
                 ['12345@x.com', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of email, min, max, and emptyOk', function (done) {
+        it('validates combination of email, min, max, and allow(\'\')', function (done) {
 
-            var rule = Joi.string().email().min(8).max(10).emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().email().min(8).max(10).allow('');
+            Helper.validate(rule, [
                 ['x@x.com', false],
                 ['123@x.com', true],
                 ['1234@x.com', true],
                 ['12345@x.com', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of email, min, max, and regex', function (done) {
+        it('validates combination of email, min, max, and regex', function (done) {
 
             var rule = Joi.string().email().min(8).max(10).regex(/^1234/);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x@x.com', false],
                 ['123@x.com', false],
                 ['1234@x.com', true],
                 ['12345@x.com', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of email, min, max, regex, and emptyOk', function (done) {
+        it('validates combination of email, min, max, regex, and allow(\'\')', function (done) {
 
-            var rule = Joi.string().email().min(8).max(10).regex(/^1234/).emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().email().min(8).max(10).regex(/^1234/).allow('');
+            Helper.validate(rule, [
                 ['x@x.com', false],
                 ['123@x.com', false],
                 ['1234@x.com', true],
                 ['12345@x.com', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of email, min, max, regex, and required', function (done) {
+        it('validates combination of email, min, max, regex, and required', function (done) {
 
             var rule = Joi.string().email().min(8).max(10).regex(/^1234/).required();
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['x@x.com', false],
                 ['123@x.com', false],
                 ['1234@x.com', true],
                 ['12345@x.com', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should validate isoDate', function (done) {
+        it('validates isoDate', function (done) {
 
-            Validate(Joi.string().isoDate(), [
+            Helper.validate(Joi.string().isoDate(), [
                 ['2013-06-07T14:21:46.295Z', true],
                 ['2013-06-07T14:21:46.295+07:00', true],
                 ['2013-06-07T14:21:46.295-07:00', true],
@@ -827,23 +1075,23 @@ describe('Joi.string', function () {
                 ['2013-06-07T14:21-07:00', true],
                 ['2013-06-07T14:21Z+7:00', false],
                 ['1-1-2013', false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should validate isoDate with a friendly error message', function (done) {
+        it('validates isoDate with a friendly error message', function (done) {
 
             var schema = { item: Joi.string().isoDate() };
-            var err = Joi.validate({ item: 'something' }, schema);
+            Joi.compile(schema).validate({ item: 'something' }, function (err, value) {
 
-            expect(err.message).to.contain('must be a valid ISO 8601 date');
-            done();
+                expect(err.message).to.contain('must be a valid ISO 8601 date');
+                done();
+            });
         });
 
-        it('should handle combination of isoDate and min', function (done) {
+        it('validates combination of isoDate and min', function (done) {
 
             var rule = Joi.string().isoDate().min(23);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', true],
                 ['2013-06-07T14:21:46.295+07:00', true],
                 ['2013-06-07T14:21:46.295-07:00', true],
@@ -857,14 +1105,13 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of isoDate, min and max', function (done) {
+        it('validates combination of isoDate, min and max', function (done) {
 
             var rule = Joi.string().isoDate().min(17).max(23);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', false],
                 ['2013-06-07T14:21:46.295+07:00', false],
                 ['2013-06-07T14:21:46.295-07:00', false],
@@ -878,14 +1125,13 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of isoDate, min and max', function (done) {
+        it('validates combination of isoDate, min and max', function (done) {
 
             var rule = Joi.string().isoDate().min(17).max(23);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', false],
                 ['2013-06-07T14:21:46.295+07:00', false],
                 ['2013-06-07T14:21:46.295-07:00', false],
@@ -899,14 +1145,13 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of isoDate, min, max and deny', function (done) {
+        it('validates combination of isoDate, min, max and invalid', function (done) {
 
-            var rule = Joi.string().isoDate().min(17).max(23).deny('2013-06-07T14:21+07:00');
-            Validate(rule, [
+            var rule = Joi.string().isoDate().min(17).max(23).invalid('2013-06-07T14:21+07:00');
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', false],
                 ['2013-06-07T14:21:46.295+07:00', false],
                 ['2013-06-07T14:21:46.295-07:00', false],
@@ -920,14 +1165,13 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of isoDate, min, max and allow', function (done) {
+        it('validates combination of isoDate, min, max and allow', function (done) {
 
             var rule = Joi.string().isoDate().min(17).max(23).allow('2013-06-07T14:21:46.295+07:00');
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', false],
                 ['2013-06-07T14:21:46.295+07:00', true],
                 ['2013-06-07T14:21:46.295-07:00', false],
@@ -941,14 +1185,13 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of isoDate, min, max, allow and deny', function (done) {
+        it('validates combination of isoDate, min, max, allow and invalid', function (done) {
 
-            var rule = Joi.string().isoDate().min(17).max(23).allow('2013-06-07T14:21:46.295+07:00').deny('2013-06-07T14:21+07:00');
-            Validate(rule, [
+            var rule = Joi.string().isoDate().min(17).max(23).allow('2013-06-07T14:21:46.295+07:00').invalid('2013-06-07T14:21+07:00');
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', false],
                 ['2013-06-07T14:21:46.295+07:00', true],
                 ['2013-06-07T14:21:46.295-07:00', false],
@@ -962,14 +1205,13 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of isoDate, min, max, allow, deny and emptyOK', function (done) {
+        it('validates combination of isoDate, min, max, allow, invalid and allow(\'\')', function (done) {
 
-            var rule = Joi.string().isoDate().min(17).max(23).allow('2013-06-07T14:21:46.295+07:00').deny('2013-06-07T14:21+07:00').emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().isoDate().min(17).max(23).allow('2013-06-07T14:21:46.295+07:00').invalid('2013-06-07T14:21+07:00').allow('');
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', false],
                 ['2013-06-07T14:21:46.295+07:00', true],
                 ['2013-06-07T14:21:46.295-07:00', false],
@@ -983,14 +1225,13 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of isoDate, min, max, allow, deny and emptyOK', function (done) {
+        it('validates combination of isoDate, min, max, allow, invalid and allow(\'\')', function (done) {
 
-            var rule = Joi.string().isoDate().min(17).max(23).allow('2013-06-07T14:21:46.295+07:00').emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().isoDate().min(17).max(23).allow('2013-06-07T14:21:46.295+07:00').allow('');
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', false],
                 ['2013-06-07T14:21:46.295+07:00', true],
                 ['2013-06-07T14:21:46.295-07:00', false],
@@ -1004,14 +1245,13 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of isoDate, min, max, allow, deny and regex', function (done) {
+        it('validates combination of isoDate, min, max, allow, invalid and regex', function (done) {
 
-            var rule = Joi.string().isoDate().min(17).max(23).allow('2013-06-07T14:21:46.295+07:00').deny('2013-06-07T14:21Z').regex(/Z$/);
-            Validate(rule, [
+            var rule = Joi.string().isoDate().min(17).max(23).allow('2013-06-07T14:21:46.295+07:00').invalid('2013-06-07T14:21Z').regex(/Z$/);
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', false],
                 ['2013-06-07T14:21:46.295+07:00', true],
                 ['2013-06-07T14:21:46.295-07:00', false],
@@ -1025,14 +1265,13 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of isoDate, min, max, allow, deny, regex and emptyOK', function (done) {
+        it('validates combination of isoDate, min, max, allow, invalid, regex and allow(\'\')', function (done) {
 
-            var rule = Joi.string().isoDate().min(17).max(23).allow('2013-06-07T14:21:46.295+07:00').deny('2013-06-07T14:21Z').regex(/Z$/).emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().isoDate().min(17).max(23).allow('2013-06-07T14:21:46.295+07:00').invalid('2013-06-07T14:21Z').regex(/Z$/).allow('');
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', false],
                 ['2013-06-07T14:21:46.295+07:00', true],
                 ['2013-06-07T14:21:46.295-07:00', false],
@@ -1046,14 +1285,13 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of isoDate, min, max and emptyOK', function (done) {
+        it('validates combination of isoDate, min, max and allow(\'\')', function (done) {
 
-            var rule = Joi.string().isoDate().min(17).max(23).emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().isoDate().min(17).max(23).allow('');
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', false],
                 ['2013-06-07T14:21:46.295+07:00', false],
                 ['2013-06-07T14:21:46.295-07:00', false],
@@ -1067,14 +1305,13 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of isoDate, min, max and regex', function (done) {
+        it('validates combination of isoDate, min, max and regex', function (done) {
 
             var rule = Joi.string().isoDate().min(17).max(23).regex(/Z$/);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', false],
                 ['2013-06-07T14:21:46.295+07:00', false],
                 ['2013-06-07T14:21:46.295-07:00', false],
@@ -1088,14 +1325,13 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of isoDate, min, max, regex and emptyOK', function (done) {
+        it('validates combination of isoDate, min, max, regex and allow(\'\')', function (done) {
 
-            var rule = Joi.string().isoDate().min(17).max(23).regex(/Z$/).emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().isoDate().min(17).max(23).regex(/Z$/).allow('');
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', false],
                 ['2013-06-07T14:21:46.295+07:00', false],
                 ['2013-06-07T14:21:46.295-07:00', false],
@@ -1109,14 +1345,13 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of isoDate, min, max, regex and required', function (done) {
+        it('validates combination of isoDate, min, max, regex and required', function (done) {
 
             var rule = Joi.string().isoDate().min(17).max(23).regex(/Z$/).required();
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['2013-06-07T14:21:46.295Z', false],
                 ['2013-06-07T14:21:46.295+07:00', false],
                 ['2013-06-07T14:21:46.295-07:00', false],
@@ -1130,13 +1365,12 @@ describe('Joi.string', function () {
                 ['1-1-2013', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should validate guid', function (done) {
+        it('validates guid', function (done) {
 
-            Validate(Joi.string().guid(), [
+            Helper.validate(Joi.string().guid(), [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', true],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', true],
                 ['69593D62-71EA-4548-85E4-04FC71357423', true],
@@ -1148,23 +1382,23 @@ describe('Joi.string', function () {
                 ['{283B67B2-430F-4E6F-97E6-19041992-C1B0}', false],
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D', false],
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should validate guid with a friendly error message', function (done) {
+        it('validates guid with a friendly error message', function (done) {
 
             var schema = { item: Joi.string().guid() };
-            var err = Joi.validate({ item: 'something' }, schema);
+            Joi.compile(schema).validate({ item: 'something' }, function (err, value) {
 
-            expect(err.message).to.contain('must be a valid GUID');
-            done();
+                expect(err.message).to.contain('must be a valid GUID');
+                done();
+            });
         });
 
-        it('should handle combination of guid and min', function (done) {
+        it('validates combination of guid and min', function (done) {
 
             var rule = Joi.string().guid().min(36);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', true],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', false],
                 ['69593D62-71EA-4548-85E4-04FC71357423', true],
@@ -1178,14 +1412,13 @@ describe('Joi.string', function () {
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of guid, min and max', function (done) {
+        it('validates combination of guid, min and max', function (done) {
 
             var rule = Joi.string().guid().min(32).max(34);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', true],
                 ['69593D62-71EA-4548-85E4-04FC71357423', false],
@@ -1199,14 +1432,13 @@ describe('Joi.string', function () {
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of guid, min, max and deny', function (done) {
+        it('validates combination of guid, min, max and invalid', function (done) {
 
-            var rule = Joi.string().guid().min(32).max(34).deny('b4b2fb69c6244e5eb0698e0c6ec66618');
-            Validate(rule, [
+            var rule = Joi.string().guid().min(32).max(34).invalid('b4b2fb69c6244e5eb0698e0c6ec66618');
+            Helper.validate(rule, [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', true],
                 ['69593D62-71EA-4548-85E4-04FC71357423', false],
@@ -1220,14 +1452,13 @@ describe('Joi.string', function () {
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of guid, min, max and allow', function (done) {
+        it('validates combination of guid, min, max and allow', function (done) {
 
             var rule = Joi.string().guid().min(32).max(34).allow('{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D');
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', true],
                 ['69593D62-71EA-4548-85E4-04FC71357423', false],
@@ -1241,14 +1472,13 @@ describe('Joi.string', function () {
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of guid, min, max, allow and deny', function (done) {
+        it('validates combination of guid, min, max, allow and invalid', function (done) {
 
-            var rule = Joi.string().guid().min(32).max(34).allow('{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D').deny('b4b2fb69c6244e5eb0698e0c6ec66618');
-            Validate(rule, [
+            var rule = Joi.string().guid().min(32).max(34).allow('{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D').invalid('b4b2fb69c6244e5eb0698e0c6ec66618');
+            Helper.validate(rule, [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', true],
                 ['69593D62-71EA-4548-85E4-04FC71357423', false],
@@ -1262,14 +1492,13 @@ describe('Joi.string', function () {
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of guid, min, max, allow, deny and emptyOK', function (done) {
+        it('validates combination of guid, min, max, allow, invalid and allow(\'\')', function (done) {
 
-            var rule = Joi.string().guid().min(32).max(34).allow('{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D').deny('b4b2fb69c6244e5eb0698e0c6ec66618').emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().guid().min(32).max(34).allow('{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D').invalid('b4b2fb69c6244e5eb0698e0c6ec66618').allow('');
+            Helper.validate(rule, [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', true],
                 ['69593D62-71EA-4548-85E4-04FC71357423', false],
@@ -1283,14 +1512,13 @@ describe('Joi.string', function () {
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of guid, min, max, allow and emptyOK', function (done) {
+        it('validates combination of guid, min, max, allow and allow(\'\')', function (done) {
 
-            var rule = Joi.string().guid().min(32).max(34).allow('{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D').emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().guid().min(32).max(34).allow('{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D').allow('');
+            Helper.validate(rule, [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', true],
                 ['69593D62-71EA-4548-85E4-04FC71357423', false],
@@ -1304,14 +1532,13 @@ describe('Joi.string', function () {
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of guid, min, max, allow, deny and regex', function (done) {
+        it('validates combination of guid, min, max, allow, invalid and regex', function (done) {
 
-            var rule = Joi.string().guid().min(32).max(34).allow('{D1A5279D-B27D-4CD4-A05E-EFDD53D08').deny('b4b2fb69c6244e5eb0698e0c6ec66618').regex(/^{7e908/);
-            Validate(rule, [
+            var rule = Joi.string().guid().min(32).max(34).allow('{D1A5279D-B27D-4CD4-A05E-EFDD53D08').invalid('b4b2fb69c6244e5eb0698e0c6ec66618').regex(/^{7e908/);
+            Helper.validate(rule, [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', false],
                 ['69593D62-71EA-4548-85E4-04FC71357423', false],
@@ -1325,14 +1552,13 @@ describe('Joi.string', function () {
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of guid, min, max, allow, deny, regex and emptyOK', function (done) {
+        it('validates combination of guid, min, max, allow, invalid, regex and allow(\'\')', function (done) {
 
-            var rule = Joi.string().guid().min(32).max(34).allow('{D1A5279D-B27D-4CD4-A05E-EFDD53D08').deny('b4b2fb69c6244e5eb0698e0c6ec66618').regex(/^{7e908/).emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().guid().min(32).max(34).allow('{D1A5279D-B27D-4CD4-A05E-EFDD53D08').invalid('b4b2fb69c6244e5eb0698e0c6ec66618').regex(/^{7e908/).allow('');
+            Helper.validate(rule, [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', false],
                 ['69593D62-71EA-4548-85E4-04FC71357423', false],
@@ -1346,14 +1572,13 @@ describe('Joi.string', function () {
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of guid, min, max and emptyOK', function (done) {
+        it('validates combination of guid, min, max and allow(\'\')', function (done) {
 
-            var rule = Joi.string().guid().min(32).max(34).emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().guid().min(32).max(34).allow('');
+            Helper.validate(rule, [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', true],
                 ['69593D62-71EA-4548-85E4-04FC71357423', false],
@@ -1367,14 +1592,13 @@ describe('Joi.string', function () {
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of guid, min, max and regex', function (done) {
+        it('validates combination of guid, min, max and regex', function (done) {
 
             var rule = Joi.string().guid().min(32).max(34).regex(/^{7e9081/i);
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', false],
                 ['69593D62-71EA-4548-85E4-04FC71357423', false],
@@ -1388,14 +1612,13 @@ describe('Joi.string', function () {
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of guid, min, max, regex and emptyOK', function (done) {
+        it('validates combination of guid, min, max, regex and allow(\'\')', function (done) {
 
-            var rule = Joi.string().guid().min(32).max(34).regex(/^{7e9081/i).emptyOk();
-            Validate(rule, [
+            var rule = Joi.string().guid().min(32).max(34).regex(/^{7e9081/i).allow('');
+            Helper.validate(rule, [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', false],
                 ['69593D62-71EA-4548-85E4-04FC71357423', false],
@@ -1409,14 +1632,13 @@ describe('Joi.string', function () {
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['', true],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
 
-        it('should handle combination of guid, min, max, regex and required', function (done) {
+        it('validates combination of guid, min, max, regex and required', function (done) {
 
             var rule = Joi.string().guid().min(32).max(34).regex(/^{7e9081/i).required();
-            Validate(rule, [
+            Helper.validate(rule, [
                 ['{D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['{B59511BD6A5F4DF09ECF562A108D8A2E}', false],
                 ['69593D62-71EA-4548-85E4-04FC71357423', false],
@@ -1430,8 +1652,7 @@ describe('Joi.string', function () {
                 ['D1A5279D-B27D-4CD4-A05E-EFDD53D08E8D}', false],
                 ['', false],
                 [null, false]
-            ]);
-            done();
+            ], done);
         });
     });
 });

@@ -2,7 +2,7 @@
 
 var Any = require('./any');
 var Errors = require('./errors');
-var Utils = require('./utils');
+var Hoek = require('hoek');
 
 
 // Declare internals
@@ -10,37 +10,32 @@ var Utils = require('./utils');
 var internals = {};
 
 
-module.exports = internals.Boolean = function () {
+internals.Boolean = function () {
 
     Any.call(this);
     this._type = 'boolean';
-
-    this._base(function (value, state, options) {
-
-        if (value === null || typeof value === 'boolean') {
-            return null;
-        }
-
-        return Errors.create('boolean.base', null, state, options);
-    });
 };
 
-Utils.inherits(internals.Boolean, Any);
+Hoek.inherits(internals.Boolean, Any);
 
 
-internals.Boolean.create = function () {
+internals.Boolean.prototype._base = function (value, state, options) {
 
-    return new internals.Boolean();
-};
+    var result = {
+        value: value
+    };
 
+    if (typeof value === 'string' &&
+        options.convert) {
 
-internals.Boolean.prototype._convert = function (value) {
-
-    if (typeof value !== 'string') {
-        return value;
+        var lower = value.toLowerCase();
+        result.value = (lower === 'true' || lower === 'yes' || lower === 'on' ? true
+                                                                              : (lower === 'false' || lower === 'no' || lower === 'off' ? false : value));
     }
 
-    value = value.toLowerCase();
-    return (value === 'true' || value === 'yes' || value === 'on' ? true
-                                                                  : (value === 'false' || value === 'no' || value === 'off' ? false : value));
+    result.errors = (typeof result.value === 'boolean') ? null : Errors.create('boolean.base', null, state, options);
+    return result;
 };
+
+
+module.exports = new internals.Boolean();

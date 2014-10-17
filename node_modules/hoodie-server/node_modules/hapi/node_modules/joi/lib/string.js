@@ -1,8 +1,10 @@
 // Load modules
 
+var Net = require('net');
+var Hoek = require('hoek');
+var Isemail = require('isemail');
 var Any = require('./any');
 var Errors = require('./errors');
-var Utils = require('./utils');
 
 
 // Declare internals
@@ -10,174 +12,149 @@ var Utils = require('./utils');
 var internals = {};
 
 
-module.exports = internals.String = function () {
+internals.String = function () {
 
     Any.call(this);
     this._type = 'string';
     this._invalids.add('');
+};
 
-    this._base(function (value, state, options) {
+Hoek.inherits(internals.String, Any);
 
-        if (typeof value === 'string' ||
-            value === null ||
-            value === undefined) {
 
-            return null;
+internals.String.prototype._base = function (value, state, options) {
+
+    if (typeof value === 'string' &&
+        options.convert) {
+
+        if (this._flags.case) {
+            value = (this._flags.case === 'upper' ? value.toLocaleUpperCase() : value.toLocaleLowerCase());
         }
 
-        return Errors.create('string.base', null, state, options);
-    });
-};
+        if (this._flags.trim) {
+            value = value.trim();
+        }
+    }
 
-Utils.inherits(internals.String, Any);
-
-
-internals.String.create = function () {
-
-    return new internals.String();
-};
-
-
-internals.String.prototype.emptyOk = function () {
-
-    this._allow('');
-    return this;
+    return {
+        value: value,
+        errors: (typeof value === 'string') ? null : Errors.create('string.base', null, state, options)
+    };
 };
 
 
 internals.String.prototype.insensitive = function () {
 
-    this._flags.insensitive = true;
-    return this;
+    var obj = this.clone();
+    obj._flags.insensitive = true;
+    return obj;
 };
 
 
-internals.String.prototype.min = function (limit) {
+internals.String.prototype.min = function (limit, encoding) {
 
-    Utils.assert(!isNaN(limit) && ((limit | 0) === parseFloat(limit)) && limit >= 0, 'limit must be a positive integer');
+    Hoek.assert(Hoek.isInteger(limit) && limit >= 0, 'limit must be a positive integer');
+    Hoek.assert(!encoding || Buffer.isEncoding(encoding), 'Invalid encoding:', encoding);
 
-    this._test('min', limit, function (value, state, options) {
+    return this._test('min', limit, function (value, state, options) {
 
-        if (typeof value === 'string' &&
-            value.length >= limit) {
-
+        var length = encoding ? Buffer.byteLength(value, encoding) : value.length;
+        if (length >= limit) {
             return null;
         }
 
-        return Errors.create('string.min', { value: limit }, state, options);
+        return Errors.create('string.min', { limit: limit }, state, options);
     });
-
-    return this;
 };
 
 
-internals.String.prototype.max = function (limit) {
+internals.String.prototype.max = function (limit, encoding) {
 
-    Utils.assert(!isNaN(limit) && ((limit | 0) === parseFloat(limit)) && limit >= 0, 'limit must be a positive integer');
+    Hoek.assert(Hoek.isInteger(limit) && limit >= 0, 'limit must be a positive integer');
+    Hoek.assert(!encoding || Buffer.isEncoding(encoding), 'Invalid encoding:', encoding);
 
-    this._test('max', limit, function (value, state, options) {
+    return this._test('max', limit, function (value, state, options) {
 
-        if (!value ||
-            value.length <= limit) {
-
+        var length = encoding ? Buffer.byteLength(value, encoding) : value.length;
+        if (length <= limit) {
             return null;
         }
 
-        return Errors.create('string.max', { value: limit }, state, options);
+        return Errors.create('string.max', { limit: limit }, state, options);
     });
-
-    return this;
 };
 
 
-internals.String.prototype.length = function (limit) {
+internals.String.prototype.length = function (limit, encoding) {
 
-    Utils.assert(!isNaN(limit) && ((limit | 0) === parseFloat(limit)) && limit >= 0, 'limit must be a positive integer');
+    Hoek.assert(Hoek.isInteger(limit) && limit >= 0, 'limit must be a positive integer');
+    Hoek.assert(!encoding || Buffer.isEncoding(encoding), 'Invalid encoding:', encoding);
 
-    this._test('length', limit, function (value, state, options) {
+    return this._test('length', limit, function (value, state, options) {
 
-        if (typeof value === 'string' &&
-            value.length === limit) {
-
+        var length = encoding ? Buffer.byteLength(value, encoding) : value.length;
+        if (length === limit) {
             return null;
         }
 
-        return Errors.create('string.length', { value: limit }, state, options);
+        return Errors.create('string.length', { limit: limit }, state, options);
     });
-
-    return this;
 };
 
 
 internals.String.prototype.regex = function (pattern) {
 
-    Utils.assert(pattern instanceof RegExp, 'pattern must be a RegExp');
+    Hoek.assert(pattern instanceof RegExp, 'pattern must be a RegExp');
 
-    this._test('regex', pattern, function (value, state, options) {
+    pattern = new RegExp(pattern.source, pattern.ignoreCase ? 'i' : undefined);         // Future version should break this and forbid unsupported regex flags
 
-        if (typeof value === 'string' &&
-            value.match(pattern)) {
+    return this._test('regex', pattern, function (value, state, options) {
 
+        if (pattern.test(value)) {
             return null;
         }
 
-        return Errors.create('string.regex', { value: pattern.toString() }, state, options);
+        return Errors.create('string.regex', null, state, options);
     });
-
-    return this;
 };
 
 
 internals.String.prototype.alphanum = function () {
 
-    this._test('alphanum', undefined, function (value, state, options) {
+    return this._test('alphanum', undefined, function (value, state, options) {
 
-        if (typeof value === 'string' &&
-            value.match(/^[a-zA-Z0-9]+$/)) {
-
+        if (/^[a-zA-Z0-9]+$/.test(value)) {
             return null;
         }
 
         return Errors.create('string.alphanum', null, state, options);
     });
-
-    return this;
 };
 
 
 internals.String.prototype.token = function () {
 
-    this._test('token', undefined, function (value, state, options) {
+    return this._test('token', undefined, function (value, state, options) {
 
-        if (typeof value === 'string' &&
-            value.match(/^\w+$/)) {
-
+        if (/^\w+$/.test(value)) {
             return null;
         }
 
         return Errors.create('string.token', null, state, options);
     });
-
-    return this;
 };
 
 
 internals.String.prototype.email = function () {
 
-    var regex = /^(?:[\w\!\#\$\%\&\'\*\+\-\/\=\?\^\`\{\|\}\~]+\.)*[\w\!\#\$\%\&\'\*\+\-\/\=\?\^\`\{\|\}\~]+@(?:(?:(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-](?!\.)){0,61}[a-zA-Z0-9]?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9\-](?!$)){0,61}[a-zA-Z0-9]?)|(?:\[(?:(?:[01]?\d{1,2}|2[0-4]\d|25[0-5])\.){3}(?:[01]?\d{1,2}|2[0-4]\d|25[0-5])\]))$/;
+    return this._test('email', undefined, function (value, state, options) {
 
-    this._test('email', undefined, function (value, state, options) {
-
-        if (typeof value === 'string' &&
-            value.match(regex)) {
-
+        if (Isemail(value)) {
             return null;
         }
 
         return Errors.create('string.email', null, state, options);
     });
-
-    return this;
 };
 
 
@@ -185,18 +162,14 @@ internals.String.prototype.isoDate = function () {
 
     var regex = /^(\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d\.\d+([+-][0-2]\d:[0-5]\d|Z))|(\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d([+-][0-2]\d:[0-5]\d|Z))|(\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d([+-][0-2]\d:[0-5]\d|Z))$/;
 
-    this._test('isoDate', undefined, function (value, state, options) {
+    return this._test('isoDate', undefined, function (value, state, options) {
 
-        if (typeof value === 'string' &&
-            value.match(regex)) {
-
+        if (regex.test(value)) {
             return null;
         }
 
         return Errors.create('string.isoDate', null, state, options);
     });
-
-    return this;
 };
 
 
@@ -205,16 +178,86 @@ internals.String.prototype.guid = function () {
     var regex = /^[A-F0-9]{8}(?:-?[A-F0-9]{4}){3}-?[A-F0-9]{12}$/i;
     var regex2 = /^\{[A-F0-9]{8}(?:-?[A-F0-9]{4}){3}-?[A-F0-9]{12}\}$/i;
 
-    this._test('guid', undefined, function (value, state, options) {
+    return this._test('guid', undefined, function (value, state, options) {
 
-        if (typeof value === 'string' &&
-            value.match(regex) || value.match(regex2)) {
-
+        if (regex.test(value) || regex2.test(value)) {
             return null;
         }
 
         return Errors.create('string.guid', null, state, options);
     });
-
-    return this;
 };
+
+
+internals.String.prototype.hostname = function () {
+
+    var regex = /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$/;
+
+    return this._test('hostname', undefined, function (value, state, options) {
+
+        if ((value.length <= 255 && regex.test(value)) ||
+            Net.isIPv6(value)) {
+
+            return null;
+        }
+
+        return Errors.create("string.hostname", null, state, options);
+    });
+};
+
+
+internals.String.prototype.lowercase = function () {
+
+    var obj = this._test('lowercase', undefined, function (value, state, options) {
+
+        if (options.convert ||
+            value === value.toLocaleLowerCase()) {
+
+            return null;
+        }
+
+        return Errors.create('string.lowercase', null, state, options);
+    });
+
+    obj._flags.case = 'lower';
+    return obj;
+};
+
+
+internals.String.prototype.uppercase = function (options) {
+
+    var obj = this._test('uppercase', undefined, function (value, state, options) {
+
+        if (options.convert ||
+            value === value.toLocaleUpperCase()) {
+
+            return null;
+        }
+
+        return Errors.create('string.uppercase', null, state, options);
+    });
+
+    obj._flags.case = 'upper';
+    return obj;
+};
+
+
+internals.String.prototype.trim = function () {
+
+    var obj = this._test('trim', undefined, function (value, state, options) {
+
+        if (options.convert ||
+            value === value.trim()) {
+
+            return null;
+        }
+
+        return Errors.create('string.trim', null, state, options);
+    });
+
+    obj._flags.trim = true;
+    return obj;
+};
+
+
+module.exports = new internals.String();

@@ -2,7 +2,7 @@
 
 var Any = require('./any');
 var Errors = require('./errors');
-var Utils = require('./utils');
+var Hoek = require('hoek');
 
 
 // Declare internals
@@ -10,83 +10,81 @@ var Utils = require('./utils');
 var internals = {};
 
 
-module.exports = internals.Date = function () {
+internals.Date = function () {
 
     Any.call(this);
     this._type = 'date';
-
-    this._base(function (value, state, options) {
-
-        if (value instanceof Date) {
-            return null;
-        }
-
-        return Errors.create('date.base', { value: value }, state, options);
-    });
 };
 
-Utils.inherits(internals.Date, Any);
+Hoek.inherits(internals.Date, Any);
 
 
-internals.Date.create = function () {
+internals.Date.prototype._base = function (value, state, options) {
 
-    return new internals.Date();
+    var result = {
+        value: (options.convert && internals.toDate(value)) || value
+    };
+
+    result.errors = (result.value instanceof Date && !isNaN(result.value.getTime())) ? null : Errors.create('date.base', null, state, options);
+    return result;
 };
 
 
 internals.toDate = function (value) {
 
-    var number = Number(value);
-    if (!isNaN(number)) {
-        value = number;
+    if (value instanceof Date) {
+        return value;
     }
 
-    var date = new Date(value);
-    if (!isNaN(date.getTime())) {
-        return date;
+    if (typeof value === 'string' ||
+        Hoek.isInteger(value)) {
+
+        if (typeof value === 'string' &&
+            /^\d+$/.test(value)) {
+
+            value = parseInt(value, 10);
+        }
+
+        var date = new Date(value);
+        if (!isNaN(date.getTime())) {
+            return date;
+        }
     }
 
     return null;
 };
 
 
-internals.Date.prototype._convert = function (value) {
-
-    return (internals.toDate(value) || value);
-};
-
-
 internals.Date.prototype.min = function (date) {
 
     date = internals.toDate(date);
-    Utils.assert(date, 'Invalid date format');
+    Hoek.assert(date, 'Invalid date format');
 
-    this._test('min', date, function (value, state, options) {
+    return this._test('min', date, function (value, state, options) {
 
         if (value.getTime() >= date.getTime()) {
             return null;
         }
 
-        return Errors.create('date.min', { value: date }, state, options);
+        return Errors.create('date.min', { limit: date }, state, options);
     });
-
-    return this;
 };
 
 
 internals.Date.prototype.max = function (date) {
 
     date = internals.toDate(date);
-    Utils.assert(date, 'Invalid date format');
+    Hoek.assert(date, 'Invalid date format');
 
-    this._test('max', date, function (value, state, options) {
+    return this._test('max', date, function (value, state, options) {
 
         if (value.getTime() <= date.getTime()) {
             return null;
         }
 
-        return Errors.create('date.max', { value: date }, state, options);
+        return Errors.create('date.max', { limit: date }, state, options);
     });
-
-    return this;
 };
+
+
+module.exports = new internals.Date();
