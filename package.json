@@ -23,5 +23,6 @@
       "hoodie-plugin-users",
       "hoodie-plugin-test"
     ]
-  }
+  },
+  "repository": "github:gr2m/hoodietaskdebug"
 }
